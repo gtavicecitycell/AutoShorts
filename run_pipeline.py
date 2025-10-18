@@ -1,76 +1,33 @@
-import os
-import random
-from moviepy.editor import TextClip, CompositeVideoClip, concatenate_videoclips, AudioFileClip
-from googleapiclient.discovery import build
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.http import MediaFileUpload
-import openai
+name: Auto YouTube Shorts (Pipeline)
 
-# ===============================
-# CONFIG - API KEYS from GitHub Secrets
-# ===============================
-openai.api_key = os.environ.get("OPENAI_API_KEY")
-GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
+on:
+  workflow_dispatch:
 
-# ===============================
-# STEP 1: Connect to YouTube
-# ===============================
-SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
-with open("client_secret.json", "w") as f:
-    f.write(GOOGLE_CLIENT_SECRET)
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-flow = InstalledAppFlow.from_client_secrets_file("client_secret.json", SCOPES)
-creds = flow.run_console()  # First time: follow link, paste code
-youtube = build("youtube", "v3", credentials=creds)
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-# ===============================
-# STEP 2: Pick a topic
-# ===============================
-topics = ["AI Facts", "Space Mystery", "Motivational Quotes", "Life Hacks", "Health Tips"]
-topic = random.choice(topics)
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
 
-# ===============================
-# STEP 3: Generate script using OpenAI
-# ===============================
-prompt = f"""
-Write a 40-55 second YouTube Short script about "{topic}".
-Start with a 1-line hook (5-8 words), then 3 short lines explaining the idea,
-then a 1-line call-to-action "Follow for more!".
-Make it high-energy and curiosity-driven.
-"""
-response = openai.Completion.create(
-    model="text-davinci-003",
-    prompt=prompt,
-    max_tokens=150,
-    temperature=0.8
-)
-script_text = response.choices[0].text.strip()
-print("📝 Generated Script:\n", script_text)
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
 
-# ===============================
-# STEP 4: Create video (text on black background)
-# ===============================
-clip = TextClip(script_text, fontsize=50, color='white',
-                size=(1080, 1920), bg_color='black',
-                method='caption', align='center', duration=15)
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          pip install --upgrade setuptools wheel
+          pip install openai google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client Pillow requests moviepy
 
-clip.write_videofile("short.mp4", fps=24)
-
-# ===============================
-# STEP 5: Upload to YouTube
-# ===============================
-request = youtube.videos().insert(
-    part="snippet,status",
-    body={
-        "snippet": {
-            "title": f"{topic} Shorts 🔥",
-            "description": script_text,
-            "tags": ["shorts", topic, "AI"],
-            "categoryId": "22"
-        },
-        "status": {"privacyStatus": "public"}
-    },
-    media_body=MediaFileUpload("short.mp4", resumable=True)
-)
-response = request.execute()
-print("✅ Uploaded Video ID:", response["id"])
+      - name: Run AI Shorts Pipeline
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: python run_pipeline.py
