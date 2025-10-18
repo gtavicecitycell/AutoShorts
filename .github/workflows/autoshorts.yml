@@ -1,0 +1,30 @@
+name: AutoShorts AI System
+
+on:
+  schedule:
+    - cron: "0 */12 * * *"  # runs every 12 hours
+  workflow_dispatch: # lets you trigger manually too
+
+jobs:
+  create-shorts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          pip install openai google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client moviepy Pillow requests
+
+      - name: Generate and upload YouTube Shorts
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        run: |
+          python3 autoshorts.py
