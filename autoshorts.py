@@ -1,40 +1,37 @@
-import os, random, textwrap, requests
-from moviepy.editor import *
-from googleapiclient.discovery import build
-from google_auth_oauthlib.flow import InstalledAppFlow
+name: Auto Shorts
 
-# 🔑 Connect to YouTube
-scopes = ["https://www.googleapis.com/auth/youtube.upload"]
-with open("client_secret.json", "w") as f:
-    f.write(os.environ["GOOGLE_CLIENT_SECRET"])
-flow = InstalledAppFlow.from_client_secrets_file("client_secret.json", scopes)
-creds = flow.run_console()
-youtube = build("youtube", "v3", credentials=creds)
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:
 
-# 🧠 Pick a random trending topic
-topics = ["AI Facts", "Space Mystery", "Motivational Quotes", "Life Hacks"]
-topic = random.choice(topics)
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-# ✍️ Simple script generator
-script = f"Here’s a {topic.lower()} you didn’t know! {topic} can change how we see the world."
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
 
-# 🎨 Create short video (text on background)
-clip = TextClip(script, fontsize=50, color='white', size=(1080,1920), bg_color='black', method='caption', align='center', duration=15)
-clip.write_videofile("short.mp4", fps=24)
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
 
-# 🎥 Upload to YouTube
-request = youtube.videos().insert(
-    part="snippet,status",
-    body={
-        "snippet": {
-            "title": f"{topic} Shorts 🔥",
-            "description": script,
-            "tags": ["shorts", topic],
-            "categoryId": "22"
-        },
-        "status": {"privacyStatus": "public"}
-    },
-    media_body=MediaFileUpload("short.mp4", resumable=True)
-)
-response = request.execute()
-print("✅ Uploaded:", response["id"])
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install moviepy google-api-python-client google-auth google-auth-oauthlib
+
+    - name: Install ffmpeg
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg
+
+    - name: Run Auto Shorts
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+      run: |
+        python auto_shorts.py
+
